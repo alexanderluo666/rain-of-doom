@@ -1,81 +1,127 @@
 #include "raylib.h"
 #include <vector>
-#include <random>
+
+struct Player {
+    int x;
+    int y;
+    int speed;
+};
 
 struct Obstacle {
     int x;
     int y;
+    int speed;
 };
 
-int randomInt(int min, int max) {
-    static std::random_device rd;
-    static std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dist(min, max);
-    return dist(gen);
-}
+enum GameState {
+    START,
+    PLAY,
+    GAME_OVER
+};
 
 int main() {
     InitWindow(800, 600, "Rain of Doom");
-
     SetTargetFPS(60);
 
-    int playerX = 375;
-    int spawnTimer = 0;
+    GameState gameState = START;
+
+    Player player = {375, 550, 5};
 
     std::vector<Obstacle> obstacles;
+    int spawnTimer = 0;
 
     while (!WindowShouldClose()) {
 
         // =====================
-        // 1. INPUT
+        // INPUT + LOGIC
         // =====================
-        if (IsKeyDown(KEY_LEFT)) playerX -= 5;
-        if (IsKeyDown(KEY_RIGHT)) playerX += 5;
 
-        if (playerX < 0) playerX = 0;
-        if (playerX > 750) playerX = 750;
-
-        // =====================
-        // 2. SPAWN
-        // =====================
-        spawnTimer++;
-        if (spawnTimer > 30) {
-            Obstacle o;
-            o.x = randomInt(0, 750);
-            o.y = 0;
-            obstacles.push_back(o);
-            spawnTimer = 0;
+        if (gameState == START) {
+	    DrawText("Play by pressing Enter",10,10,40,BLACK);
+	    DrawText("Use Left and Right Arrow to move",10,50,40,BLACK);
+	    DrawText("Try to avoid the obstacles",10,90,40,BLACK);
+	    DrawText("Good Luck!",10,130,40,BLACK);
+            if (IsKeyPressed(KEY_ENTER)) {
+                gameState = PLAY;
+            }
         }
 
-        // =====================
-        // 3. UPDATE
-        // =====================
-        for (auto &o : obstacles) {
-            o.y += 5;
+        else if (gameState == PLAY) {
+
+            // input
+            if (IsKeyDown(KEY_LEFT)) player.x -= player.speed;
+            if (IsKeyDown(KEY_RIGHT)) player.x += player.speed;
+
+            if (player.x < 0) player.x = 0;
+            if (player.x > 750) player.x = 750;
+
+            // spawn
+            spawnTimer++;
+            if (spawnTimer > 30) {
+                Obstacle o;
+                o.x = GetRandomValue(0, 750);
+                o.y = 0;
+                o.speed = 5;
+                obstacles.push_back(o);
+                spawnTimer = 0;
+            }
+
+            // update obstacles
+            for (auto &o : obstacles) {
+                o.y += o.speed;
+            }
+
+            // collision
+            for (auto &o : obstacles) {
+                if (o.y > player.y - 20 &&
+                    o.x > player.x - 25 &&
+                    o.x < player.x + 50) {
+                    gameState = GAME_OVER;
+                }
+            }
+
+            // cleanup
+            for (int i = 0; i < obstacles.size(); i++) {
+                if (obstacles[i].y > 600) {
+                    obstacles.erase(obstacles.begin() + i);
+                    i--;
+                }
+            }
         }
 
-        // =====================
-        // 4. CLEANUP
-        // =====================
-        for (int i = 0; i < obstacles.size(); i++) {
-            if (obstacles[i].y > 600) {
-                obstacles.erase(obstacles.begin() + i);
-                i--;
+        else if (gameState == GAME_OVER) {
+	    DrawText("You failed!",10,10,40,BLACK);
+	    DrawText("Press R to try again!",10,50,40,BLACK);
+            if (IsKeyPressed(KEY_R)) {
+                gameState = START;
+                player.x = 375;
+                obstacles.clear();
+                spawnTimer = 0;
             }
         }
 
         // =====================
-        // 5. DRAW
+        // DRAW (ALWAYS LAST)
         // =====================
+
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        // player
-        DrawRectangle(playerX, 550, 50, 50, BLUE);
+        if (gameState == START) {
+            // start screen (empty by request)
+        }
 
-        // obstacles
-        for (auto &o : obstacles) {
-            DrawRectangle(o.x, o.y, 30, 30, RED);
+        else if (gameState == PLAY) {
+
+            DrawRectangle(player.x, player.y, 50, 50, BLUE);
+
+            for (auto &o : obstacles) {
+                DrawRectangle(o.x, o.y, 30, 30, RED);
+            }
+        }
+
+        else if (gameState == GAME_OVER) {
+            // game over screen (empty by request)
         }
 
         EndDrawing();
@@ -83,3 +129,5 @@ int main() {
 
     CloseWindow();
 }
+
+
