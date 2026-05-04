@@ -5,12 +5,18 @@ int main() {
 
     int playerX = 375;
 
+    SetTargetFPS(60);
+
     while (!WindowShouldClose()) {
-        // Input
+
+
         if (IsKeyDown(KEY_LEFT)) playerX -= 5;
         if (IsKeyDown(KEY_RIGHT)) playerX += 5;
 
-        // Draw
+        if (playerX < 0) playerX = 0;
+        if (playerX > 750) playerX = 750;
+
+
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
