@@ -1,16 +1,21 @@
 #include "raylib.h"
 #include <vector>
+#include <iostream>
 
 struct Player {
-    int x;
-    int y;
-    int speed;
+    float x;
+    float y;
+    float velocityX;
+    float velocityY;
+    float speed;
+    bool onGround;
+    int health;
 };
 
 struct Obstacle {
-    int x;
-    int y;
-    int speed;
+    float x;
+    float y;
+    float speed;
 };
 
 enum GameState {
@@ -25,10 +30,15 @@ int main() {
 
     GameState gameState = START;
 
-    Player player = {375, 550, 5};
+    Player player = {375, 550, 0, 0, 6, true, 3};
 
     std::vector<Obstacle> obstacles;
     int spawnTimer = 0;
+
+    float score = 0;
+
+    const float gravity = 0.6f;
+    const float jumpPower = -12.0f;
 
     while (!WindowShouldClose()) {
 
@@ -36,51 +46,124 @@ int main() {
         // INPUT + LOGIC
         // =====================
 
-        if (gameState == START) {
-	    DrawText("Play by pressing Enter",10,10,40,BLACK);
-	    DrawText("Use Left and Right Arrow to move",10,50,40,BLACK);
-	    DrawText("Try to avoid the obstacles",10,90,40,BLACK);
-	    DrawText("Good Luck!",10,130,40,BLACK);
+        if (gameState == START){
+            DrawText("Press ENTER to Start", 200, 250, 20, BLACK);	
             if (IsKeyPressed(KEY_ENTER)) {
                 gameState = PLAY;
+                // reset everything
+                player.x = 375;
+                player.y = 550;
+                player.velocityX = 0;
+                player.velocityY = 0;
+                player.health = 3;
+                player.onGround = true;
+
+                obstacles.clear();
+                spawnTimer = 0;
+                score = 0;
             }
         }
 
         else if (gameState == PLAY) {
 
-            // input
-            if (IsKeyDown(KEY_LEFT)) player.x -= player.speed;
-            if (IsKeyDown(KEY_RIGHT)) player.x += player.speed;
+            // =====================
+            // INPUT (movement + jump)
+            // =====================
 
+            if (IsKeyDown(KEY_LEFT)) player.velocityX -= 0.5f;
+            if (IsKeyDown(KEY_RIGHT)) player.velocityX += 0.5f;
+
+            if (IsKeyPressed(KEY_SPACE) && player.onGround) {
+                player.velocityY = jumpPower;
+                player.onGround = false;
+            }
+
+            // friction
+            player.velocityX *= 0.85f;
+
+            if (player.velocityX > player.speed) player.velocityX = player.speed;
+            if (player.velocityX < -player.speed) player.velocityX = -player.speed;
+
+            player.x += player.velocityX;
+
+            // =====================
+            // GRAVITY + VERTICAL MOVE
+            // =====================
+
+            player.velocityY += gravity;
+            player.y += player.velocityY;
+
+            // ground collision
+            if (player.y >= 550) {
+                player.y = 550;
+                player.velocityY = 0;
+                player.onGround = true;
+            }
+
+            // boundaries
             if (player.x < 0) player.x = 0;
             if (player.x > 750) player.x = 750;
 
-            // spawn
+            // =====================
+            // SCORE SYSTEM
+            // =====================
+
+            score += GetFrameTime();
+
+            // =====================
+            // DIFFICULTY
+            // =====================
+
+            float difficulty = 1.0f + score * 0.15f;
+
+            float spawnRate = 30.0f / difficulty;
+
+            // =====================
+            // SPAWN
+            // =====================
+
             spawnTimer++;
-            if (spawnTimer > 30) {
+            if (spawnTimer > spawnRate) {
                 Obstacle o;
                 o.x = GetRandomValue(0, 750);
                 o.y = 0;
-                o.speed = 5;
+                o.speed = 4.0f * difficulty;
                 obstacles.push_back(o);
                 spawnTimer = 0;
             }
 
-            // update obstacles
+            // =====================
+            // UPDATE OBSTACLES
+            // =====================
+
             for (auto &o : obstacles) {
                 o.y += o.speed;
             }
 
-            // collision
+            // =====================
+            // COLLISION (AABB SIMPLE)
+            // =====================
+
             for (auto &o : obstacles) {
                 if (o.y > player.y - 20 &&
+                    o.y < player.y + 50 &&
                     o.x > player.x - 25 &&
                     o.x < player.x + 50) {
-                    gameState = GAME_OVER;
+
+                    player.health--;
+
+                    o.y = 9999; // remove hit obstacle
+
+                    if (player.health <= 0) {
+                        gameState = GAME_OVER;
+                    }
                 }
             }
 
-            // cleanup
+            // =====================
+            // CLEANUP
+            // =====================
+
             for (int i = 0; i < obstacles.size(); i++) {
                 if (obstacles[i].y > 600) {
                     obstacles.erase(obstacles.begin() + i);
@@ -90,38 +173,35 @@ int main() {
         }
 
         else if (gameState == GAME_OVER) {
-	    DrawText("You failed!",10,10,40,BLACK);
-	    DrawText("Press R to try again!",10,50,40,BLACK);
-            if (IsKeyPressed(KEY_R)) {
+            float difficulty = 1.0f + score * 0.15f;
+
+            DrawText("GAME OVER", 280, 200, 30, RED);
+
+    	    DrawText(TextFormat("Score: %.2f", score), 280, 260, 20, BLACK);
+
+    	    DrawText(TextFormat("Difficulty: %.2f", difficulty), 280, 290, 20, BLACK);
+
+   	    DrawText("Press R to Restart", 240, 340, 20, BLACK);
+
+    	    if (IsKeyPressed(KEY_R)) {
                 gameState = START;
-                player.x = 375;
-                obstacles.clear();
-                spawnTimer = 0;
             }
         }
 
         // =====================
-        // DRAW (ALWAYS LAST)
+        // DRAW
         // =====================
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
 
-        if (gameState == START) {
-            // start screen (empty by request)
-        }
+        if (gameState == PLAY) {
 
-        else if (gameState == PLAY) {
-
-            DrawRectangle(player.x, player.y, 50, 50, BLUE);
+            DrawRectangle((int)player.x, (int)player.y, 50, 50, BLUE);
 
             for (auto &o : obstacles) {
-                DrawRectangle(o.x, o.y, 30, 30, RED);
+                DrawRectangle((int)o.x, (int)o.y, 30, 30, RED);
             }
-        }
-
-        else if (gameState == GAME_OVER) {
-            // game over screen (empty by request)
         }
 
         EndDrawing();
@@ -129,5 +209,4 @@ int main() {
 
     CloseWindow();
 }
-
 
